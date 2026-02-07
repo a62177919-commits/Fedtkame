@@ -94,8 +94,9 @@ playersPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
 Instance.new("UIListLayout", playersPage).Padding = UDim.new(0, 4)
 
 -- ЛОГИКА SMART ATTACK (DEATH COUNTER)
+-- ОБНОВЛЕННЫЙ БЛОК SMART ATTACK (DEATH COUNTER CUTSCENE)
 local isAttacking = false
-local function SmartAttack(btn)
+local function SmartAttackLogic(btn)
     if isAttacking then return end
     isAttacking = true
     
@@ -104,49 +105,76 @@ local function SmartAttack(btn)
     if not hrp then isAttacking = false return end
     local oldPos = hrp.CFrame
     
+    -- Поиск ближайшей цели в радиусе 1000 студийных единиц
     local target = nil
     local dist = 1000
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= player and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character:FindFirstChild("HumanoidRootPart") then
             local d = (hrp.Position - p.Character.HumanoidRootPart.Position).Magnitude
-            if d < dist and p.Character.Humanoid.Health > 0 then dist = d target = p.Character end
+            if d < dist and p.Character.Humanoid.Health > 0 then 
+                dist = d 
+                target = p.Character 
+            end
         end
     end
     
     if target then
-        btn.Text = "ATTACKING..."
-        char:PivotTo(target.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2.5)) -- ТП СЗАДИ [cite: 2026-02-04]
-        task.wait(0.15)
-        
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
+        btn.Text = "TARGET FOUND"
+        -- 1. Резкий телепорт за спину для активации скилла
+        char:PivotTo(target.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2.5))
         task.wait(0.1)
+        
+        -- 2. Прожимаем скилл 2 (нажатие через VirtualInputManager)
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
+        task.wait(0.05)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Two, false, game)
         
+        -- 3. Проверка на попадание (мониторинг ХП врага)
         local lastHP = target.Humanoid.Health
         local hit = false
-        for i = 1, 20 do
+        for i = 1, 15 do
             if target.Humanoid.Health < lastHP then hit = true break end
             task.wait(0.05)
         end
         
         if hit then
-            btn.Text = "DEATH COUNTER"
+            btn.Text = "🌑 DEATH COUNTER..."
+            
+            -- Координаты локации катсцены (пустота)
+            local CutscenePos = Vector3.new(5000, 5000, 5000)
+            
+            -- Создаем черную платформу для эффекта "пустоты"
             local plat = Instance.new("Part", workspace)
-            plat.Size, plat.Anchored, plat.Position, plat.Transparency = Vector3.new(30, 1, 30), true, Vector3.new(5000, 4996, 5000), 1
-            game:GetService("Debris"):AddItem(plat, 4)
-            char:PivotTo(CFrame.new(5000, 5000, 5000))
-            task.wait(3)
+            plat.Size = Vector3.new(50, 1, 50)
+            plat.Position = CutscenePos - Vector3.new(0, 4, 0)
+            plat.Anchored = true
+            plat.Color = Color3.fromRGB(0, 0, 0) -- Полностью черная
+            plat.Material = Enum.Material.Neon
+            game:GetService("Debris"):AddItem(plat, 3.5) -- Исчезнет после катсцены
+            
+            -- Телепортируем тебя и врага в пустоту
+            char:PivotTo(CFrame.new(CutscenePos))
+            if target:FindFirstChild("HumanoidRootPart") then
+                target.HumanoidRootPart.CFrame = CFrame.new(CutscenePos + Vector3.new(0, 0, -5))
+            end
+            
+            task.wait(3) -- Длительность катсцены
+            btn.Text = "FATALITY"
         else
             btn.Text = "MISSED"
         end
+        
+        -- Возвращаемся на исходную позицию
         char:PivotTo(oldPos)
     else
         btn.Text = "NO TARGET"
     end
+    
     task.wait(0.5)
     btn.Text = "SMART ATTACK (2)"
     isAttacking = false
 end
+
 
 -- СОЗДАНИЕ КНОПОК
 local function CreateBtn(text, parent, func)
